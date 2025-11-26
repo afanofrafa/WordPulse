@@ -72,6 +72,8 @@ target_link_libraries(analyzer_test PRIVATE
     Qt6::QuickControls2
 )
 
+target_include_directories(analyzer_test PRIVATE src tests)
+
 add_test(NAME AnalyzerTest COMMAND analyzer_test)
 
 # === 3. УСТАНОВКА ===
