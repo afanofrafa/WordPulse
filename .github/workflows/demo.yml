@@ -1,0 +1,84 @@
+name: WordPulse WorkFlow
+
+# 1. ТРИГГЕРЫ: Когда запускать?
+# Запускаем при любом пуше в ветку main или master, а также при Pull Request
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    # 2. МАТРИЦА: Запускаем параллельно на Linux и Windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # Если Linux упал, Windows продолжает собираться
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    # Шаг A: Клонируем репозиторий
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Шаг B: Устанавливаем Qt
+    # Используем готовый экшен jurplel/install-qt-action
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.6.0' # Версия Qt (можно менять)
+        host: ${{ matrix.os == 'windows-latest' && 'windows' || 'linux' }}
+        target: 'desktop'
+        # Для Windows берем win64_msvc2019_64 (стандарт для GitHub), для Linux - gcc
+        arch: ${{ matrix.os == 'windows-latest' && 'win64_msvc2019_64' || '' }}
+
+    # Шаг C: Создаем папку сборки
+    - name: Create Build Directory
+      run: mkdir build
+
+    # Шаг D: Конфигурируем CMake
+    # Важно: CMAKE_BUILD_TYPE=Release для оптимизации
+    - name: Configure CMake
+      working-directory: build
+      run: cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    # Шаг E: Сборка (Build)
+    # Здесь сработают ваши флаги /WX и -Werror. Если есть варнинги - сборка упадет.
+    - name: Build
+      working-directory: build
+      run: cmake --build . --config Release
+
+    # Шаг F: Запуск тестов (Testing)
+    # ctest найдет ваш analyzer_test и запустит его.
+    # --output-on-failure покажет логи, если тест упадет.
+    - name: Run Tests
+      working-directory: build
+      run: ctest -C Release --output-on-failure
+
+    # --- DEPLOYMENT (Только для Windows) ---
+    # Собираем все DLL в одну папку и делаем ZIP
+    
+    - name: Prepare Deployment (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        mkdir release_pack
+        copy build\Release\appuntitled.exe release_pack\WordPulse.exe
+    
+    # windeployqt автоматически находит нужные DLL Qt и копирует их к exe
+    - name: Run windeployqt
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        windeployqt --release --qmldir resources/qml release_pack\WordPulse.exe
+
+    # Загружаем готовый артефакт (можно скачать на сайте GitHub)
+    - name: Upload Artifact
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WordPulse-Windows-Release
+        path: release_pack/

@@ -1,0 +1,8 @@
+{
+  "top_n": 15,
+  "update_interval_ms": 100,
+  "chunk_size_bytes": 1048576,
+  "max_chunks_in_mem_num": 10,
+  "word_pattern": "\\w+",
+  "case_sensitive": false
+}

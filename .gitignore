@@ -1,0 +1,60 @@
+# --- 1. Настройки Qt Creator (САМОЕ ВАЖНОЕ) ---
+# Этот файл содержит абсолютные пути твоего компа. Не пушить!
+CMakeLists.txt.user
+*.user
+*.user.*
+
+# Папка с кешем Qt Creator (видна на скриншоте)
+.qtcreator/
+
+# Файлы автосохранения (если Qt Creator упал)
+*.autosave
+
+# --- 2. Папки сборки (Build) ---
+# Даже если сейчас их нет, они появятся при компиляции
+build/
+cmake-build-*/
+*Desktop_Qt_*
+debug/
+release/
+
+# --- 3. Файлы CMake ---
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+Makefile
+# Исключаем install скрипты, кроме самого CMakeLists.txt
+cmake_install.cmake
+
+# --- 4. Бинарники и объектные файлы ---
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.pdb
+*.ilk
+
+# --- 5. Артефакты деплоя (CI/CD) ---
+release_pack/
+dist/
+
+# --- 6. IDE и ОС ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- 7. Локальные тестовые файлы (Мусор) ---
+# На скриншоте виден огромный файл на 100мб.
+# GitHub не даст загрузить файлы >100Мб, лучше их игнорировать.
+100mb-examplefile-com.txt
+*.log
+
+# Если "sasas.txt" и "New Text Document" — это мусор,
+# лучше их удалить руками, но можно и заигнорить:
+# *.txt 
+# (Но будь осторожен, если *.txt используются как нужные ресурсы для тестов)
