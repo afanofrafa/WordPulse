@@ -2,7 +2,7 @@
 #include <QSignalSpy>
 #include "../src/blockanalyzerthread.h"
 #include "../src/config.h"
-#include "MockDataProvider.h"
+#include "mockdataprovider.h"
 
 class TestBlockAnalyzer : public QObject
 {
