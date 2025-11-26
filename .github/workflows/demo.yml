@@ -56,6 +56,8 @@ jobs:
     # --output-on-failure покажет логи, если тест упадет.
     - name: Run Tests
       working-directory: build
+      env:
+        QT_QPA_PLATFORM: offscreen
       run: ctest -C Release --output-on-failure
 
     # --- DEPLOYMENT (Только для Windows) ---
