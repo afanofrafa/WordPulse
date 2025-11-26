@@ -50,6 +50,8 @@ target_link_libraries(appuntitled PRIVATE
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Widgets Qt6::QuickControls2
 )
 
+target_include_directories(appuntitled PRIVATE src)
+
 # === 2. ТЕСТЫ ===
 enable_testing()
 
