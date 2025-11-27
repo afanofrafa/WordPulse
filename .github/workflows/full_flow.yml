@@ -75,8 +75,25 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        # patchelf и file нужны для linuxdeploy
-        sudo apt-get install -y libfuse2 file patchelf
+        sudo apt-get install -y \
+          libfuse2 \
+          file \
+          patchelf \
+          desktop-file-utils \
+          libxcb-cursor0 \
+          libxcb-icccm4 \
+          libxcb-image0 \
+          libxcb-keysyms1 \
+          libxcb-randr0 \
+          libxcb-render-util0 \
+          libxcb-shape0 \
+          libxcb-shm0 \
+          libxcb-sync1 \
+          libxcb-xfixes0 \
+          libxcb-xinerama0 \
+          libxcb-xkb1 \
+          libxkbcommon-x11-0 \
+          libgl1-mesa-dev
 
     - name: Create AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
