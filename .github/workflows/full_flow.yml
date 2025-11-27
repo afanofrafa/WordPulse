@@ -100,37 +100,38 @@ jobs:
 
     - name: Create AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
+      # Убрали LD_LIBRARY_PATH, оставили только отключение графики
       env:
-        # Указываем пути к библиотекам Qt
-        LD_LIBRARY_PATH: ${{ env.Qt6_DIR }}/lib:${{ env.LD_LIBRARY_PATH }}
-        # Отключаем графику, чтобы не падало из-за отсутствия монитора
         QT_QPA_PLATFORM: offscreen
       run: |
-        # 1. Создаем правильную структуру папок (AppDir)
+        # 1. Создаем структуру AppDir
         mkdir -p AppDir/usr/bin
         mkdir -p AppDir/usr/lib
         mkdir -p AppDir/usr/share/applications
         mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-        # 2. Копируем бинарник
+        # 2. Копируем бинарник и даем права на исполнение (Важно!)
         cp build/appuntitled AppDir/usr/bin/appuntitled
+        chmod +x AppDir/usr/bin/appuntitled
         
-        # 3. Копируем десктоп файл и иконку в корень AppDir (для linuxdeployqt)
+        # 3. Копируем ресурсы
         cp resources/WordPulse.desktop AppDir/
         cp resources/appicon.png AppDir/
-        
-        # 4. Копируем их же в системные пути (для стандарта FHS)
         cp resources/WordPulse.desktop AppDir/usr/share/applications/
         cp resources/appicon.png AppDir/usr/share/icons/hicolor/256x256/apps/
 
-        # 5. Указываем путь к бинарникам Qt
-        export PATH=${{ env.Qt6_DIR }}/bin:$PATH
+        # 4. Проверяем desktop файл вручную (чтобы увидеть ошибку, если она там)
+        desktop-file-validate AppDir/WordPulse.desktop
+
+        # 5. Определяем полный путь к qmake
+        QMAKE_PATH=${{ env.Qt6_DIR }}/bin/qmake
+        echo "Using qmake at: $QMAKE_PATH"
         
         # 6. Запускаем упаковку
-        # -verbose=2 поможет увидеть, какая именно библиотека копируется
+        # Убрали LD_LIBRARY_PATH из окружения, чтобы не ломать саму утилиту
         ./linuxdeployqt-continuous-x86_64.AppImage AppDir/WordPulse.desktop \
           -appimage \
-          -qmake=$(which qmake) \
+          -qmake=$QMAKE_PATH \
           -unsupported-allow-new-glibc \
           -qmldir=${{ github.workspace }}/resources \
           -no-strip \
