@@ -75,7 +75,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
-        windeployqt --release --qmldir "${{ github.workspace }}\resources\qml" release_pack\WordPulse.exe
+        windeployqt --release --qmldir resources release_pack\WordPulse.exe
 
     # Загружаем готовый артефакт (можно скачать на сайте GitHub)
     - name: Upload Artifact
