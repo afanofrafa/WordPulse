@@ -42,7 +42,7 @@ qt_add_executable(appuntitled
 qt_add_qml_module(appuntitled
     URI untitled
     VERSION 1.0
-    QML_FILES resources/Main.qml
+    QML_FILES resources/qml/Main.qml
     SOURCES ${LOGIC_SOURCES}
 )
 
