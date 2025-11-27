@@ -248,9 +248,9 @@ void FileReaderThread::readChunk() {
             return;
         }
         bool isEnd = false;
-        qsizetype cutPos;
         QByteArrayView currentBlockView;
         qint64 currentPos = file.pos();
+        qsizetype cutPos = currentPos;
         qint64 chunkSize = 0;
         while (!isEnd) {
             if (file.size() == currentBlockView.size() || file.atEnd() || file.size() <= chunkSize)
