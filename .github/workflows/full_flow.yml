@@ -1,4 +1,4 @@
-name: WordPulse WorkFlow
+name: WordPulse CI/CD Linux + CI/CD Windows
 
 on:
   workflow_dispatch:
@@ -75,7 +75,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        # ДОБАВЛЕНО: patchelf
+        # Убеждаемся, что patchelf точно ставится
         sudo apt-get install -y libfuse2 file patchelf
 
     - name: Download linuxdeployqt (Linux)
@@ -86,22 +86,32 @@ jobs:
 
     - name: Create AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
+      env:
+        # Важно! Говорим утилите, где лежат библиотеки Qt
+        LD_LIBRARY_PATH: ${{ env.Qt6_DIR }}/lib:${{ env.LD_LIBRARY_PATH }}
+        # Запрещаем попытки использовать графику при сканировании
+        QT_QPA_PLATFORM: offscreen
       run: |
-        # 1. Копируем .desktop файл и иконку к бинарнику в папку build
-        # Убедитесь, что эти файлы есть в папке resources в репозитории!
+        # 1. Копируем .desktop файл и иконку
         cp resources/WordPulse.desktop build/
         cp resources/appicon.png build/
         
-        # 2. Указываем путь к Qt
+        # 2. Указываем путь к бинарникам Qt (qmake)
         export PATH=${{ env.Qt6_DIR }}/bin:$PATH
         
-        # 3. Запускаем упаковку
-        # -unsupported-allow-new-glibc нужен для новых версий Ubuntu
-        ./linuxdeployqt-continuous-x86_64.AppImage build/WordPulse.desktop -appimage -qmake=$(which qmake) -unsupported-allow-new-glibc
+        # 3. Запускаем упаковку с МАКСИМАЛЬНОЙ детализацией и безопасными флагами
+        ./linuxdeployqt-continuous-x86_64.AppImage build/WordPulse.desktop \
+          -appimage \
+          -qmake=$(which qmake) \
+          -unsupported-allow-new-glibc \
+          -qmldir=${{ github.workspace }}/resources \
+          -no-strip \
+          -no-translations \
+          -verbose=2
 
     - name: Rename AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
-      run: mv WordPulse*.AppImage WordPulse-Linux-Release.AppImage
+      run: mv Application-*.AppImage WordPulse-Linux-Release.AppImage
 
     - name: Upload Artifact (Linux)
       if: matrix.os == 'ubuntu-latest'

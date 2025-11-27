@@ -1,4 +1,4 @@
-name: WordPulse WorkFlow
+name: WordPulse CI Linux + CI/CD Windows
 
 # 1. ТРИГГЕРЫ: Когда запускать?
 # Запускаем при любом пуше в ветку main или master, а также при Pull Request
