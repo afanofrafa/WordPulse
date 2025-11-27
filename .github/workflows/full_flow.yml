@@ -87,26 +87,33 @@ jobs:
     - name: Create AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
       env:
-        # Важно! Говорим утилите, где лежат библиотеки Qt
+        # Указываем пути к библиотекам Qt
         LD_LIBRARY_PATH: ${{ env.Qt6_DIR }}/lib:${{ env.LD_LIBRARY_PATH }}
-        # Запрещаем попытки использовать графику при сканировании
         QT_QPA_PLATFORM: offscreen
       run: |
-        # 1. Копируем .desktop файл и иконку
-        cp resources/WordPulse.desktop build/
-        cp resources/appicon.png build/
+        # 1. Создаем правильную структуру папок (AppDir)
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+        mkdir -p AppDir/usr/share/applications
+
+        # 2. Копируем бинарник в папку usr/bin
+        cp build/appuntitled AppDir/usr/bin/appuntitled
         
-        # 2. Указываем путь к бинарникам Qt (qmake)
+        # 3. Копируем ресурсы в корень AppDir (как требует утилита)
+        cp resources/WordPulse.desktop AppDir/WordPulse.desktop
+        cp resources/appicon.png AppDir/appicon.png
+        
+        # 4. Указываем путь к бинарникам Qt
         export PATH=${{ env.Qt6_DIR }}/bin:$PATH
         
-        # 3. Запускаем упаковку с МАКСИМАЛЬНОЙ детализацией и безопасными флагами
-        ./linuxdeployqt-continuous-x86_64.AppImage build/WordPulse.desktop \
+        # 5. Запускаем упаковку уже на подготовленной папке
+        # Обратите внимание: мы запускаем на файле ВНУТРИ AppDir
+        ./linuxdeployqt-continuous-x86_64.AppImage AppDir/WordPulse.desktop \
           -appimage \
           -qmake=$(which qmake) \
           -unsupported-allow-new-glibc \
           -qmldir=${{ github.workspace }}/resources \
           -no-strip \
-          -no-translations \
           -verbose=2
 
     - name: Rename AppImage (Linux)
