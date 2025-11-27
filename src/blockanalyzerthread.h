@@ -47,17 +47,17 @@ private:
     void emitUpdate(void);
     QVector<QPair<quint64, QString>> getTopWordsWithCount(void) const;
 
-    QByteArrayView block;
-    QString word;
+    QByteArrayView _block;
+    QString _word;
 
-    const Config& config;
-    QRegularExpression regex;
-    QMap<QString, quint64> totalWordsMap;
-    std::set<QPair<quint64, QString>, std::less<QPair<quint64, QString>>> topWordsSet;
-    IDataProvider* dataProvider_ptr;
-    quint64 totalSize;
-    quint64 processed;
-    QTimer* update_timer;
+    const Config& _config;
+    QRegularExpression _regex;
+    QMap<QString, quint64> _totalWordsMap;
+    std::set<QPair<quint64, QString>, std::less<QPair<quint64, QString>>> _topWordsSet;
+    IDataProvider* _dataProvider_ptr;
+    quint64 _totalSize;
+    quint64 _processed;
+    QTimer* _update_timer;
 };
 
 #endif // BLOCKANALYZERTHREAD_H

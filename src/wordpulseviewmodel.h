@@ -82,15 +82,15 @@ private:
 
     TopWordsModel* _topWordsModel;
 
-    QString configPath;
-    const Config config;
+    QString _configPath;
+    const Config _config;
 
-    QString status;
-    QString error;
-    quint8 progress;
+    QString _status;
+    QString _error;
+    quint8 _progress;
 
-    bool isRunning;
-    bool isPaused;
+    bool _isRunning;
+    bool _isPaused;
 };
 
 #endif // WORDPULSEVIEWMODEL_H

@@ -4,21 +4,21 @@
 #include <QDir>
 #include "topwordsmodel.h"
 
-WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, configPath("config.json"), config(Config::fromJson(configPath))
+WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _configPath("config.json"), _config(Config::fromJson(_configPath))
 {
     _topWordsModel = new TopWordsModel(this);
     //update_progress_timer = new QTimer(this);
     //connect(update_progress_timer, &QTimer::timeout, this, &WordPulseViewModel::updateProgress, Qt::QueuedConnection);
     //connect(analyzer.get(), &BlockAnalyzerThread::topWords, this, &WordPulseViewModel::updateTopWords);
     //connect(update_progress_timer, &QTimer::timeout, this, &WordPulseViewModel::updateTopWords, Qt::QueuedConnection);
-    progress = 0;
+    _progress = 0;
      _topWordsModel->resetTopWords({});//topWords.reserve(config.top_n);
-    status = "";
-    isRunning = false;
-    isPaused = false;
+    _status = "";
+    _isRunning = false;
+    _isPaused = false;
 
-    reader = std::make_unique<FileReaderThread>("", config);
-    analyzer = std::make_unique<BlockAnalyzerThread>(config, reader.get());
+    reader = std::make_unique<FileReaderThread>("", _config);
+    analyzer = std::make_unique<BlockAnalyzerThread>(_config, reader.get());
     connect(reader.get(), &FileReaderThread::chunkIsReady,
             analyzer.get(), &BlockAnalyzerThread::analyzeBlock, Qt::QueuedConnection);
 
@@ -51,27 +51,27 @@ WordPulseViewModel::~WordPulseViewModel()
 
 QString WordPulseViewModel::get_status() const noexcept
 {
-    return status;
+    return _status;
 }
 
 qint32 WordPulseViewModel::get_topWordsCount() const noexcept
 {
-    return config.top_n;
+    return _config.top_n;
 }
 
 bool WordPulseViewModel::get_isRunning() const noexcept
 {
-    return isRunning;
+    return _isRunning;
 }
 
 bool WordPulseViewModel::get_isPaused() const noexcept
 {
-    return isPaused;
+    return _isPaused;
 }
 
 quint8 WordPulseViewModel::get_progress() const noexcept
 {
-    return progress;
+    return _progress;
 }
 
 // QVariantList WordPulseViewModel::get_topWords() const noexcept
@@ -104,7 +104,7 @@ void WordPulseViewModel::openFile() {
 //C:\Users\Archie\Documents\Work_C\untitled 2\untitled
      _topWordsModel->resetTopWords({});
     //topWords.clear();
-    progress = 0;
+    _progress = 0;
     //emit topWordsChanged();
     emit progressChanged();
 
@@ -118,7 +118,7 @@ void WordPulseViewModel::start()
     qDebug() << "started";
     _topWordsModel->resetTopWords({});
     //topWords.clear();
-    progress = 0;
+    _progress = 0;
     //emit topWordsChanged();
     emit progressChanged();
 
@@ -156,7 +156,7 @@ void WordPulseViewModel::cancel()
     qDebug() << "cancel";
      _topWordsModel->resetTopWords({});
     //topWords.clear();
-    progress = 0;
+    _progress = 0;
     //emit topWordsChanged();
     emit progressChanged();
 
@@ -167,22 +167,22 @@ void WordPulseViewModel::cancel()
 }
 
 void WordPulseViewModel::setStatus(const QString& status_str) {
-    if (status != status_str) {
-        status = status_str;
+    if (_status != status_str) {
+        _status = status_str;
         emit statusChanged();
     }
 }
 
 void WordPulseViewModel::setError(const QString& error_str)
 {
-    if (error != error_str)
-        error = error_str;
+    if (_error != error_str)
+        _error = error_str;
 }
 
 void WordPulseViewModel::setProgress(quint8 progress)
 {
-    if (this->progress != progress) {
-        this->progress = progress;
+    if (this->_progress != progress) {
+        this->_progress = progress;
     }
 }
 
@@ -197,21 +197,21 @@ void WordPulseViewModel::setProgress(quint8 progress)
 
 void WordPulseViewModel::setIsRunning(bool isRunning)
 {
-    this->isRunning = isRunning;
+    this->_isRunning = isRunning;
     qDebug() << "setIsRunning: " << isRunning;
     emit runningChanged();
 }
 
 void WordPulseViewModel::setIsPaused(bool isPaused)
 {
-    this->isPaused = isPaused;
+    this->_isPaused = isPaused;
     qDebug() << "setIsPaused: " << isPaused;
     emit pausedChanged();
 }
 
 void WordPulseViewModel::updateProgress(quint8 progress) {
-    if (this->progress != progress) {
-        this->progress = progress;
+    if (this->_progress != progress) {
+        this->_progress = progress;
         qDebug() << "progressChanged";
         emit progressChanged();
     }

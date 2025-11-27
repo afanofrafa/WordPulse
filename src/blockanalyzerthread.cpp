@@ -1,24 +1,24 @@
 #include "blockanalyzerthread.h"
 
 BlockAnalyzerThread::BlockAnalyzerThread(const Config &config, IDataProvider* dataProvider_ptr, QObject *parent)
-    : QThread{parent}, config(config)
+    : QThread{parent}, _config(config)
 {
-    this->dataProvider_ptr = dataProvider_ptr;
-    word.reserve(50);
+    this->_dataProvider_ptr = dataProvider_ptr;
+    _word.reserve(50);
 
-    totalSize = 0;
-    processed = 0;
+    _totalSize = 0;
+    _processed = 0;
 
-    update_timer = new QTimer(this);
-    connect(update_timer, &QTimer::timeout, this, &BlockAnalyzerThread::emitUpdate, Qt::QueuedConnection);
+    _update_timer = new QTimer(this);
+    connect(_update_timer, &QTimer::timeout, this, &BlockAnalyzerThread::emitUpdate, Qt::QueuedConnection);
 
     //connect(dataProvider_ptr, &FileReaderThread::chunkIsReady, this, &BlockAnalyzerThread::analyzeBlock);
 
-    regex.setPattern(config.string_pattern);
-    if (!config.case_sensitive) {
-        regex.setPatternOptions(QRegularExpression::NoPatternOption);
+    _regex.setPattern(config.string_pattern);
+    if (!_config.case_sensitive) {
+        _regex.setPatternOptions(QRegularExpression::NoPatternOption);
     } else {
-        regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
+        _regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
     }
 
     qDebug() << "BlockAnalyzerThread initialized.";
@@ -42,7 +42,7 @@ BlockAnalyzerThread::~BlockAnalyzerThread()
 
 void BlockAnalyzerThread::analyzeBlock(void)
 {
-    if (!dataProvider_ptr) {
+    if (!_dataProvider_ptr) {
         qCritical() << "FileReader pointer is null in analyzeBlock";
         return;
     }
@@ -51,18 +51,18 @@ void BlockAnalyzerThread::analyzeBlock(void)
     try
     {
         {
-            dataProvider_ptr->lock();
-            if (dataProvider_ptr->isDataEmpty()) {
-                dataProvider_ptr->unlock();
+            _dataProvider_ptr->lock();
+            if (_dataProvider_ptr->isDataEmpty()) {
+                _dataProvider_ptr->unlock();
                 return;
             }
 
-            block = dataProvider_ptr->getDataBlock();
-            dataProvider_ptr->unlock();
+            block = _dataProvider_ptr->getDataBlock();
+            _dataProvider_ptr->unlock();
         }
         // QByteArrayView view = block.right(15);
         // qDebug() << "right part of block: " << view;
-        QRegularExpressionMatchIterator it = regex.globalMatch(QString::fromUtf8(block));
+        QRegularExpressionMatchIterator it = _regex.globalMatch(QString::fromUtf8(block));
 
         while (it.hasNext())
         {
@@ -70,32 +70,32 @@ void BlockAnalyzerThread::analyzeBlock(void)
             if (!match.hasMatch())
                 continue;
 
-            if (regex.patternOptions() == QRegularExpression::NoPatternOption) {
-                word = match.captured(0).toLower();
+            if (_regex.patternOptions() == QRegularExpression::NoPatternOption) {
+                _word = match.captured(0).toLower();
             }
             else {
-                word = match.captured(0);
+                _word = match.captured(0);
             }
-            if (word.isEmpty())
+            if (_word.isEmpty())
                 continue;
 
-            quint64 &count = totalWordsMap[word];
+            quint64 &count = _totalWordsMap[_word];
             quint64 oldCount = count;
             ++count;
 
             if (oldCount > 0) {
-                topWordsSet.erase({oldCount, word});
+                _topWordsSet.erase({oldCount, _word});
             }
 
-            topWordsSet.insert({count, word});
+            _topWordsSet.insert({count, _word});
 
-            while (topWordsSet.size() > static_cast<size_t>(config.top_n) )
+            while (_topWordsSet.size() > static_cast<size_t>(_config.top_n) )
             {
-                topWordsSet.erase(topWordsSet.begin());
+                _topWordsSet.erase(_topWordsSet.begin());
             }
         }
 
-        processed += block.size();
+        _processed += block.size();
     }
     catch (const std::exception &e) {
         qCritical() << "Exception during block analysis:" << e.what();
@@ -105,12 +105,12 @@ void BlockAnalyzerThread::analyzeBlock(void)
 QVector<QPair<quint64, QString>> BlockAnalyzerThread::getTopWordsWithCount(void) const
 {
     QVector<QPair<quint64, QString>> result;
-    const size_t n = qMin(static_cast<size_t>(config.top_n), topWordsSet.size());
+    const size_t n = qMin(static_cast<size_t>(_config.top_n), _topWordsSet.size());
     if (!n)
         return result;
 
     result.reserve(n);
-    auto it = topWordsSet.rbegin();
+    auto it = _topWordsSet.rbegin();
     for (size_t i = 0; i < n; ++i, ++it) {
         result.prepend({it->first, it->second});
     }
@@ -119,29 +119,29 @@ QVector<QPair<quint64, QString>> BlockAnalyzerThread::getTopWordsWithCount(void)
 
 void BlockAnalyzerThread::setTotalSize(quint64 totalSize)
 {
-    this->totalSize = totalSize;
+    this->_totalSize = totalSize;
 }
 
 void BlockAnalyzerThread::setProcessed(quint64 processed)
 {
-    this->processed = processed;
+    this->_processed = processed;
 }
 
 void BlockAnalyzerThread::clearTops()
 {
-    topWordsSet.clear();
-    totalWordsMap.clear();
+    _topWordsSet.clear();
+    _totalWordsMap.clear();
 }
 
 void BlockAnalyzerThread::cancelAnalyzis(void)
 {
     qInfo() << "Analysis canceled.";
-    if (update_timer && update_timer->isActive())
-        update_timer->stop();
+    if (_update_timer && _update_timer->isActive())
+        _update_timer->stop();
 
-    topWordsSet.clear();
-    totalWordsMap.clear();
-    processed = 0;
+    _topWordsSet.clear();
+    _totalWordsMap.clear();
+    _processed = 0;
 
     QMetaObject::invokeMethod(this, &BlockAnalyzerThread::emitUpdate, Qt::QueuedConnection);
 }
@@ -149,26 +149,26 @@ void BlockAnalyzerThread::cancelAnalyzis(void)
 void BlockAnalyzerThread::startAnalyzis(void)
 {
     qInfo() << "Analysis started.";
-    topWordsSet.clear();
-    totalWordsMap.clear();
-    processed = 0;
+    _topWordsSet.clear();
+    _totalWordsMap.clear();
+    _processed = 0;
 
-    if (update_timer && !update_timer->isActive())
-        update_timer->start(config.update_interval_ms);
+    if (_update_timer && !_update_timer->isActive())
+        _update_timer->start(_config.update_interval_ms);
 }
 
 void BlockAnalyzerThread::resumeAnalyzis(void)
 {
     qInfo() << "Analysis resumed.";
-    if (update_timer && !update_timer->isActive())
-        update_timer->start(config.update_interval_ms);
+    if (_update_timer && !_update_timer->isActive())
+        _update_timer->start(_config.update_interval_ms);
 }
 
 void BlockAnalyzerThread::pauseAnalyzis(void)
 {
     qInfo() << "Analysis paused.";
-    if (update_timer && update_timer->isActive())
-        update_timer->stop();
+    if (_update_timer && _update_timer->isActive())
+        _update_timer->stop();
 }
 
 void BlockAnalyzerThread::run()
@@ -179,13 +179,13 @@ void BlockAnalyzerThread::run()
 void BlockAnalyzerThread::emitUpdate(void)
 {
     qInfo() << "Emit update";
-    if (totalSize == 0) {
-        if (processed > 0)
+    if (_totalSize == 0) {
+        if (_processed > 0)
             emit progress(0);
         return;
     }
 
-    double ratio = static_cast<double>(processed) / static_cast<double>(totalSize);
+    double ratio = static_cast<double>(_processed) / static_cast<double>(_totalSize);
     quint8 progressPercent = static_cast<quint8>(qBound(0.0, ratio * 100.0, 100.0));
 
     QVector<QPair<quint64, QString>> loc_topWords = getTopWordsWithCount();
