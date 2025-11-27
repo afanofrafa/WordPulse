@@ -1,0 +1,110 @@
+name: WordPulse WorkFlow
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    # --- 1. ПОДГОТОВКА ---
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.6.0'
+        host: ${{ matrix.os == 'windows-latest' && 'windows' || 'linux' }}
+        target: 'desktop'
+        arch: ${{ matrix.os == 'windows-latest' && 'win64_msvc2019_64' || '' }}
+
+    - name: Create Build Directory
+      run: mkdir build
+
+    # --- 2. СБОРКА ---
+    - name: Configure CMake
+      working-directory: build
+      run: cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      working-directory: build
+      run: cmake --build . --config Release
+
+    # --- 3. ТЕСТЫ ---
+    - name: Run Tests
+      working-directory: build
+      env:
+        QT_QPA_PLATFORM: offscreen # Важно для тестов без монитора
+      run: ctest -C Release --output-on-failure
+
+    # --- 4. DEPLOYMENT (WINDOWS) ---
+    - name: Prepare Deployment (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        mkdir release_pack
+        copy build\Release\appuntitled.exe release_pack\WordPulse.exe
+
+    - name: Run windeployqt (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      # Используем абсолютный путь (github.workspace) и папку resources (без qml, согласно вашему CMake)
+      run: |
+        windeployqt --release --qmldir resources/qml release_pack\WordPulse.exe
+
+    - name: Upload Artifact (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WordPulse-Windows-Release
+        path: release_pack/
+
+    # --- 5. DEPLOYMENT (LINUX) ---
+    - name: Install Dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfuse2 file
+
+    - name: Download linuxdeployqt (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        wget https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
+        chmod +x linuxdeployqt-continuous-x86_64.AppImage
+
+    - name: Create AppImage (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # 1. Копируем .desktop файл и иконку к бинарнику в папку build
+        # Убедитесь, что эти файлы есть в папке resources в репозитории!
+        cp resources/WordPulse.desktop build/
+        cp resources/appicon.png build/
+        
+        # 2. Указываем путь к Qt
+        export PATH=${{ env.Qt6_DIR }}/bin:$PATH
+        
+        # 3. Запускаем упаковку
+        # -unsupported-allow-new-glibc нужен для новых версий Ubuntu
+        ./linuxdeployqt-continuous-x86_64.AppImage build/WordPulse.desktop -appimage -qmake=$(which qmake) -unsupported-allow-new-glibc
+
+    - name: Rename AppImage (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: mv WordPulse*.AppImage WordPulse-Linux-Release.AppImage
+
+    - name: Upload Artifact (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WordPulse-Linux-Release
+        path: WordPulse-Linux-Release.AppImage
