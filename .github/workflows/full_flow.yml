@@ -75,71 +75,42 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        # Устанавливаем ВСЕ возможные зависимости для Qt6 и AppImage
-        sudo apt-get install -y \
-          libfuse2 \
-          file \
-          patchelf \
-          libxcb-cursor0 \
-          libxcb-icccm4 \
-          libxcb-image0 \
-          libxcb-keysyms1 \
-          libxcb-randr0 \
-          libxcb-render-util0 \
-          libxcb-xinerama0 \
-          libxcb-xkb1 \
-          libxkbcommon-x11-0 \
-          libgl1-mesa-dev \
-          desktop-file-utils
-
-    - name: Download linuxdeployqt (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        wget https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
-        chmod +x linuxdeployqt-continuous-x86_64.AppImage
+        # patchelf и file нужны для linuxdeploy
+        sudo apt-get install -y libfuse2 file patchelf
 
     - name: Create AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
-      # Убрали LD_LIBRARY_PATH, оставили только отключение графики
       env:
-        QT_QPA_PLATFORM: offscreen
+        # Говорим плагину, где искать qmake (обязательно!)
+        QMAKE: ${{ env.Qt6_DIR }}/bin/qmake
+        # Говорим плагину, где искать QML файлы (чтобы не было белого экрана)
+        QML_SOURCES_PATHS: ${{ github.workspace }}/resources
       run: |
-        # 1. Создаем структуру AppDir
-        mkdir -p AppDir/usr/bin
-        mkdir -p AppDir/usr/lib
-        mkdir -p AppDir/usr/share/applications
-        mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+        # 1. Скачиваем linuxdeploy и плагин для Qt
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        chmod +x linuxdeploy*.AppImage
 
-        # 2. Копируем бинарник и даем права на исполнение (Важно!)
-        cp build/appuntitled AppDir/usr/bin/appuntitled
-        chmod +x AppDir/usr/bin/appuntitled
+        # 2. Запускаем сборку
+        # Больше не нужно создавать папки AppDir вручную, утилита сделает это сама.
+        # -e: путь к вашему скомпилированному бинарнику
+        # -d: путь к .desktop файлу
+        # -i: путь к иконке
+        # --plugin qt: включить магию Qt (автопоиск библиотек и QML)
+        # --output appimage: упаковать в файл
         
-        # 3. Копируем ресурсы
-        cp resources/WordPulse.desktop AppDir/
-        cp resources/appicon.png AppDir/
-        cp resources/WordPulse.desktop AppDir/usr/share/applications/
-        cp resources/appicon.png AppDir/usr/share/icons/hicolor/256x256/apps/
-
-        # 4. Проверяем desktop файл вручную (чтобы увидеть ошибку, если она там)
-        desktop-file-validate AppDir/WordPulse.desktop
-
-        # 5. Определяем полный путь к qmake
-        QMAKE_PATH=${{ env.Qt6_DIR }}/bin/qmake
-        echo "Using qmake at: $QMAKE_PATH"
-        
-        # 6. Запускаем упаковку
-        # Убрали LD_LIBRARY_PATH из окружения, чтобы не ломать саму утилиту
-        ./linuxdeployqt-continuous-x86_64.AppImage AppDir/WordPulse.desktop \
-          -appimage \
-          -qmake=$QMAKE_PATH \
-          -unsupported-allow-new-glibc \
-          -qmldir=${{ github.workspace }}/resources \
-          -no-strip \
-          -verbose=2
+        ./linuxdeploy-x86_64.AppImage \
+          --appdir AppDir \
+          -e build/appuntitled \
+          -d resources/WordPulse.desktop \
+          -i resources/appicon.png \
+          --plugin qt \
+          --output appimage
 
     - name: Rename AppImage (Linux)
       if: matrix.os == 'ubuntu-latest'
-      run: mv Application-*.AppImage WordPulse-Linux-Release.AppImage
+      # Утилита сама называет файл (например, WordPulse-x86_64.AppImage), находим его и переименовываем
+      run: mv WordPulse*.AppImage WordPulse-Linux-Release.AppImage
 
     - name: Upload Artifact (Linux)
       if: matrix.os == 'ubuntu-latest'
