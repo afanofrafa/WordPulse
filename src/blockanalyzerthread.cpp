@@ -178,7 +178,7 @@ void BlockAnalyzerThread::run()
 
 void BlockAnalyzerThread::emitUpdate(void)
 {
-    qInfo() << "Emit update";
+    //qInfo() << "Emit update";
     if (_totalSize == 0) {
         if (_processed > 0)
             emit progress(0);
