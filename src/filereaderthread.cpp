@@ -13,11 +13,7 @@ FileReaderThread::FileReaderThread(const QString &filePath, const Config& config
     running = false;
     paused = false;
 
-    /*try {
-        blockStr.reserve(config.chunk_size_bytes);
-    } catch (const std::bad_alloc&) {
-        qCritical() << "Failed to allocate memory for block buffer in FileReaderThread constructor";
-    }*/
+    this->moveToThread(this);
 }
 
 FileReaderThread::~FileReaderThread()
@@ -66,6 +62,11 @@ bool FileReaderThread::isDataEmpty() const
     return blockQueue.isEmpty();
 }
 
+qsizetype FileReaderThread::dataSize() const
+{
+    return blockQueue.size();
+}
+
 QByteArrayView FileReaderThread::getDataBlock()
 {
     return blockQueue.dequeue();
@@ -102,7 +103,7 @@ void FileReaderThread::startReading() {
         qCritical() << err;
         emit error(err);
         running = false;
-        emit isRunningChanged(running);
+        emit readingError(std::move(err));//  isRunningChanged(running);
         {
             QMutexLocker locker(&mutex);
             blockQueue.clear();
@@ -112,8 +113,6 @@ void FileReaderThread::startReading() {
 
     running = true;
     paused = false;
-    emit isRunningChanged(running);
-    emit isPausedChanged(paused);
 
     {
         QMutexLocker locker(&mutex);
@@ -132,8 +131,6 @@ void FileReaderThread::pauseReading() {
     if (!running || paused)
         return;
     paused = true;
-    emit isPausedChanged(paused);
-    emit statusChanged("Пауза");
 }
 
 void FileReaderThread::resumeReading() {
@@ -141,8 +138,6 @@ void FileReaderThread::resumeReading() {
     if (!running || !paused)
         return;
     paused = false;
-    emit isPausedChanged(paused);
-    emit statusChanged("Продолжение");
 
     triggerRead();
 }
@@ -151,8 +146,6 @@ void FileReaderThread::cancelReading() {
     qInfo() << "Canceling reading operation.";
     running = false;
     paused = false;
-    emit isRunningChanged(running);
-    emit isPausedChanged(paused);
 
     {
         QMutexLocker locker(&mutex);
@@ -162,8 +155,6 @@ void FileReaderThread::cancelReading() {
     if (file.isOpen()) {
         file.close();
     }
-
-    emit statusChanged("Отменено");
 }
 
 /*void FileReaderThread::readChunk() {
@@ -234,9 +225,7 @@ void FileReaderThread::readChunk() {
         {
             QMutexLocker locker(&mutex);
             if (blockQueue.size() >= static_cast<int>(config_cref.max_chunks_in_mem_num)) {
-                qDebug() << "Block queue full, yielding.";
-                QThread::yieldCurrentThread();
-                triggerRead();
+                qInfo() << "Block queue is full, skip reading";
                 return;
             }
         }
@@ -244,7 +233,7 @@ void FileReaderThread::readChunk() {
         if (file.atEnd()) {
             running = false;
             qInfo() << "File reading completed (EOF reached).";
-            emit isRunningChanged(running);
+            emit readingFinished();// isRunningChanged(running);
             return;
         }
         bool isEnd = false;
@@ -264,7 +253,7 @@ void FileReaderThread::readChunk() {
                 QString err = "Critical: File mapping failed. Possibly out of memory or OS limit.";
                 qCritical() << err;
                 emit error(err);
-                emit isRunningChanged(running);
+                emit readingError(std::move(err));//  isRunningChanged(running);
                 return;
             }
 
@@ -291,7 +280,6 @@ void FileReaderThread::readChunk() {
             currentBlockView = currentBlockView.first(cutPos + 1);
 
             qint64 rollback = static_cast<qint64>((targetSize - 1) - cutPos);
-            //if (rollback)
             file.seek(currentPos + chunkSize - rollback);
         }
 
@@ -299,6 +287,7 @@ void FileReaderThread::readChunk() {
         {
             QMutexLocker locker(&mutex);
             blockQueue.enqueue(currentBlockView);
+            qDebug() << blockQueue.size() <<" blockQueue enqueue";
         }
 
         emit chunkIsReady();
@@ -308,11 +297,11 @@ void FileReaderThread::readChunk() {
         qCritical() << "Exception in readChunk:" << e.what();
         running = false;
         emit error("Internal reading error");
-        emit isRunningChanged(running);
+        emit readingError(QString("Exception in readChunk:") + e.what());//  isRunningChanged(running);
     } catch (...) {
         qCritical() << "Unknown exception in readChunk";
         running = false;
-        emit isRunningChanged(running);
+        emit readingError("Unknown exception in readChunk");//  isRunningChanged(running);
     }
 }
 

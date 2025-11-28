@@ -26,6 +26,7 @@ public:
     ~BlockAnalyzerThread() override;
 
 public slots:
+    void analyzingFinishing(void);
     void analyzeBlock(void);
     void setTotalSize(quint64 totalSize);
     void setProcessed(quint64 processed);
@@ -36,6 +37,10 @@ public slots:
     void pauseAnalyzis(void);
 
 signals:
+    void analyzingError(const QString& error);
+    void analyzisFinished();
+    void error();
+    void thresholdBlockFreed();
     void blockProcessed(const QMap<QByteArray, int>& wordCount, qint64 bytesProcessed);
     void error(const QString& message);
     void progress(quint8 progress);

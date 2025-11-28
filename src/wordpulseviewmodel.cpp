@@ -7,20 +7,33 @@
 WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _configPath("config.json"), _config(Config::fromJson(_configPath))
 {
     _topWordsModel = new TopWordsModel(this);
-    //update_progress_timer = new QTimer(this);
-    //connect(update_progress_timer, &QTimer::timeout, this, &WordPulseViewModel::updateProgress, Qt::QueuedConnection);
-    //connect(analyzer.get(), &BlockAnalyzerThread::topWords, this, &WordPulseViewModel::updateTopWords);
-    //connect(update_progress_timer, &QTimer::timeout, this, &WordPulseViewModel::updateTopWords, Qt::QueuedConnection);
     _progress = 0;
-     _topWordsModel->resetTopWords({});//topWords.reserve(config.top_n);
+     _topWordsModel->resetTopWords({});
     _status = "";
     _isRunning = false;
     _isPaused = false;
+    _fileChosen = false;
 
     reader = std::make_unique<FileReaderThread>("", _config);
     analyzer = std::make_unique<BlockAnalyzerThread>(_config, reader.get());
+
     connect(reader.get(), &FileReaderThread::chunkIsReady,
             analyzer.get(), &BlockAnalyzerThread::analyzeBlock, Qt::QueuedConnection);
+
+    connect(reader.get(), &FileReaderThread::readingFinished,
+            analyzer.get(), &BlockAnalyzerThread::analyzingFinishing, Qt::QueuedConnection);
+
+    connect(analyzer.get(), &BlockAnalyzerThread::analyzisFinished,
+            this, &WordPulseViewModel::finishProcess, Qt::QueuedConnection);
+
+    connect(analyzer.get(), &BlockAnalyzerThread::analyzingError,
+            this, &WordPulseViewModel::showError, Qt::QueuedConnection);
+
+    connect(reader.get(), &FileReaderThread::readingError,
+            this, &WordPulseViewModel::showError, Qt::QueuedConnection);
+
+    connect(analyzer.get(), &BlockAnalyzerThread::thresholdBlockFreed,
+            reader.get(), &FileReaderThread::readChunk, Qt::QueuedConnection);
 
     connect(this, &WordPulseViewModel::readingStarted, reader.get(), &FileReaderThread::startReading, Qt::QueuedConnection);
     connect(this, &WordPulseViewModel::readingStarted, analyzer.get(), &BlockAnalyzerThread::startAnalyzis, Qt::QueuedConnection);
@@ -43,10 +56,7 @@ WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _conf
 
 WordPulseViewModel::~WordPulseViewModel()
 {
-    /*if (update_progress_timer) {
-        update_progress_timer->stop();
-        update_progress_timer->deleteLater();
-    }*/
+
 }
 
 QString WordPulseViewModel::get_status() const noexcept
@@ -74,11 +84,6 @@ quint8 WordPulseViewModel::get_progress() const noexcept
     return _progress;
 }
 
-// QVariantList WordPulseViewModel::get_topWords() const noexcept
-// {
-//     return topWords;
-// }
-
 void WordPulseViewModel::openFile() {
     QString fileName = QFileDialog::getOpenFileName(
         nullptr,                                   // родитель (nullptr = модальный)
@@ -88,7 +93,7 @@ void WordPulseViewModel::openFile() {
     );
 
     if (fileName.isEmpty()) {
-        setStatus("Выбор файла отменён");
+        emit showWarning("Выбор файла отменён");
         return;
     }
 
@@ -98,72 +103,89 @@ void WordPulseViewModel::openFile() {
     if (analyzer) {
          analyzer->setProcessed(0);
          analyzer->clearTops();
-         //analyzer->setTop(0);
          analyzer->setTotalSize(fileInfo.size());
     }
-//C:\Users\Archie\Documents\Work_C\untitled 2\untitled
-     _topWordsModel->resetTopWords({});
-    //topWords.clear();
+
+    _topWordsModel->resetTopWords({});
     _progress = 0;
-    //emit topWordsChanged();
+    _fileChosen = true;
     emit progressChanged();
 
-    setStatus(QString("Выбран файл: %1 (%2 КБ)")
+    emit showInfo(QString("Выбран файл: %1 (%2 КБ)")
                   .arg(fileInfo.fileName())
                   .arg(fileInfo.size() / 1024));
 }
 
 void WordPulseViewModel::start()
 {
+    if (!_fileChosen) {
+        emit showWarning("Файл не выбран!");
+        return;
+    }
+
     qDebug() << "started";
     _topWordsModel->resetTopWords({});
-    //topWords.clear();
     _progress = 0;
-    //emit topWordsChanged();
     emit progressChanged();
-
-    // if (update_progress_timer && !update_progress_timer->isActive())
-    //     update_progress_timer->start(config.update_interval_ms);
 
     if (reader)
         reader->start();
     if (analyzer)
         analyzer->start();
 
+    _isPaused = false;
+    _isRunning = true;
     emit readingStarted();
+
+    emit pausedChanged();
+    emit runningChanged();
 }
 
 void WordPulseViewModel::pause()
 {
     qDebug() << "paused";
-    // if (update_progress_timer && update_progress_timer->isActive())
-    //     update_progress_timer->stop();
-
+    _isPaused = true;
     emit readingPaused();
+
+    emit pausedChanged();
 }
 
 void WordPulseViewModel::resume()
 {
-    // if (update_progress_timer && !update_progress_timer->isActive())
-    //     update_progress_timer->start(config.update_interval_ms);
-
     qDebug() << "resumed";
+    _isPaused = false;
     emit readingResumed();
+
+    emit pausedChanged();
 }
 
 void WordPulseViewModel::cancel()
 {
     qDebug() << "cancel";
-     _topWordsModel->resetTopWords({});
-    //topWords.clear();
+    _topWordsModel->resetTopWords({});
     _progress = 0;
-    //emit topWordsChanged();
+    _isPaused = false;
+    _isRunning = false;
     emit progressChanged();
-
-    // if (update_progress_timer && update_progress_timer->isActive())
-    //     update_progress_timer->stop();
-
     emit readingCancel();
+
+    emit pausedChanged();
+    emit runningChanged();
+}
+
+void WordPulseViewModel::showInfo(const QString &msg)
+{
+    emit systemMessage(MsgInfo, msg);
+}
+
+void WordPulseViewModel::showWarning(const QString &msg)
+{
+    emit systemMessage(MsgWarning, msg);
+}
+
+void WordPulseViewModel::showError(const QString &msg)
+{
+    emit systemMessage(MsgError, msg);
 }
 
 void WordPulseViewModel::setStatus(const QString& status_str) {
@@ -186,15 +208,6 @@ void WordPulseViewModel::setProgress(quint8 progress)
     }
 }
 
-// void WordPulseViewModel::setTopWords(const QVariantList &topWords)
-// {
-//     if  (this->topWords != topWords) {
-//         this->topWords = topWords;
-//         isTopWordsListChanged = true;
-//     }
-
-// }
-
 void WordPulseViewModel::setIsRunning(bool isRunning)
 {
     this->_isRunning = isRunning;
@@ -210,6 +223,9 @@ void WordPulseViewModel::setIsPaused(bool isPaused)
 }
 
 void WordPulseViewModel::updateProgress(quint8 progress) {
+    if (_isPaused)
+        return;
+
     if (this->_progress != progress) {
         this->_progress = progress;
         qDebug() << "progressChanged";
@@ -218,6 +234,9 @@ void WordPulseViewModel::updateProgress(quint8 progress) {
 }
 
 void WordPulseViewModel::updateTopWords(const QVector<QPair<quint64, QString>>& newTopWords) {
+    if (_isPaused)
+        return;
+
     const int currentSize = _topWordsModel->rowCount();
     const int newSize = newTopWords.size();
     const int minSize = qMin(currentSize, newSize);
@@ -234,18 +253,17 @@ void WordPulseViewModel::updateTopWords(const QVector<QPair<quint64, QString>>& 
             }
         }
     } else {
-        // Редко: размер изменился (напр., с 0 до 15)
         _topWordsModel->resetTopWords(newTopWords);
     }
-    //emit topWordsChanged();  // Не обязательно, dataChanged уже обновит QML
+}
+
+void WordPulseViewModel::finishProcess()
+{
+    _isRunning = false;
+    emit runningChanged();
+    emit showInfo("Анализ завершён!");
 }
 
 TopWordsModel* WordPulseViewModel::getTopWordsModel() const noexcept {
     return _topWordsModel;
 }
-// void WordPulseViewModel::updateTopWords() {
-//     if (isTopWordsListChanged) {
-//         emit topWordsChanged();
-//         isTopWordsListChanged = false;
-//     }
-// }

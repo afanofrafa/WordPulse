@@ -38,7 +38,7 @@ ApplicationWindow {
                             vm.pause()
                     }
                 }
-                Material.background: vm.isRunning ? (vm.isPaused ? Material.Green : Material.Orange) : Material.Grey
+                Material.background: vm.isRunning ? (vm.isPaused ? Material.Shade700 : Material.Orange) : Material.Grey
             }
             Button {
                 text: "Отмена"
@@ -60,7 +60,7 @@ ApplicationWindow {
                 width: parent.width * (vm.progress / 100)
                 height: parent.height
                 radius: 20
-                color: Material.color(Material.Green)
+                color: Material.color(Material.Teal)
 
                 Behavior on width {
                         enabled: vm.progress > 0 && vm.isRunning  // ← ВКЛЮЧАЕТ АНИМАЦИЮ ТОЛЬКО ПРИ РОСТЕ
@@ -170,6 +170,59 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+    // 1. Универсальный Диалог
+    Dialog {
+        id: infoDialog
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        modal: true
+        standardButtons: Dialog.Ok
+
+        property int msgType: 0 // Храним тип текущего сообщения
+
+        // Заголовок зависит от типа
+        title: {
+            switch(msgType) {
+                case WordPulseViewModel.MsgError: return "Ошибка";
+                case WordPulseViewModel.MsgWarning: return "Внимание";
+                case WordPulseViewModel.MsgInfo: return "Информация";
+                default: return "Сообщение";
+            }
+        }
+
+        // Иконка или цвет текста
+        Label {
+            text: infoDialog.msgText // Текст сообщения (см. ниже)
+            width: 300
+            wrapMode: Text.WordWrap
+
+            // Цвет зависит от типа
+            color: {
+                switch(infoDialog.msgType) {
+                    case WordPulseViewModel.MsgError: return Material.color(Material.Red);
+                    case WordPulseViewModel.MsgWarning: return Material.color(Material.Orange, Material.Shade800);
+                    case WordPulseViewModel.MsgInfo: return Material.color(Material.Blue);
+                    default: return "black";
+                }
+            }
+            font.bold: infoDialog.msgType === WordPulseViewModel.MsgError // Ошибки жирным
+        }
+
+        // Временное свойство для текста, чтобы Label его видел
+        property string msgText: ""
+    }
+
+    // 2. Связь (Ловим сигнал)
+    Connections {
+        target: vm
+
+        // Обработчик: on + SystemMessage (название сигнала с большой буквы)
+        function onSystemMessage(type, text) {
+            infoDialog.msgType = type; // Запоминаем тип (0, 1 или 2)
+            infoDialog.msgText = text; // Запоминаем текст
+            infoDialog.open();         // Показываем
         }
     }
 }

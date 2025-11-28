@@ -40,6 +40,13 @@ public:
     bool get_isRunning() const noexcept;
     bool get_isPaused() const noexcept;
 
+    enum MessageType {
+        MsgInfo = 0,
+        MsgWarning,
+        MsgError
+    };
+    Q_ENUM(MessageType)
+
 public slots:
     void openFile();
     void start();
@@ -48,6 +55,8 @@ public slots:
     void cancel();
 
 signals:
+    void systemMessage(WordPulseViewModel::MessageType type, const QString &text);
+
     void progressChanged();
     void topWordsChanged();
     void topWordsCountChanged();
@@ -66,6 +75,9 @@ signals:
 //     void pausedChanged();
 
 private:
+    void showInfo(const QString &msg);
+    void showWarning(const QString &msg);
+    void showError(const QString &msg);
     //void setProgress(int value);
     void setStatus(const QString& status_str);
     void setError(const QString& error_str);
@@ -76,6 +88,7 @@ private:
     void updateProgress(quint8 progress);
     //void updateTopWords();
     void updateTopWords(const QVector<QPair<quint64, QString>>& newTopWords);
+    void finishProcess(void);
 
     std::unique_ptr<FileReaderThread> reader;
     std::unique_ptr<BlockAnalyzerThread> analyzer;
@@ -91,6 +104,7 @@ private:
 
     bool _isRunning;
     bool _isPaused;
+    bool _fileChosen;
 };
 
 #endif // WORDPULSEVIEWMODEL_H

@@ -11,6 +11,7 @@ public:
     virtual void lock() = 0;
     virtual void unlock() = 0;
     virtual bool isDataEmpty() const = 0;
+    virtual qsizetype dataSize() const = 0;
     virtual QByteArrayView getDataBlock() = 0;
 };
 

@@ -19,6 +19,8 @@ public:
 
     bool isDataEmpty() const override;
 
+    qsizetype dataSize() const override;
+
     QByteArrayView getDataBlock() override;
 };
 

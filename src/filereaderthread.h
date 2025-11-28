@@ -32,6 +32,7 @@ public:
     void lock() override;
     void unlock() override;
     bool isDataEmpty() const override;
+    qsizetype dataSize() const override;
     QByteArrayView getDataBlock() override;
 
     /*tbb::detail::d2::concurrent_queue<QString>*/QQueue<QByteArrayView>& getBlockQueue(void) noexcept;
@@ -49,6 +50,8 @@ public slots:
 
 signals:
     void chunkIsReady();
+    void readingFinished(void);
+    void readingError(const QString& error);
     void statusChanged(const QString &status_str);
     void error(const QString &error_str);
     void isRunningChanged(bool isRunning);

@@ -21,6 +21,8 @@ BlockAnalyzerThread::BlockAnalyzerThread(const Config &config, IDataProvider* da
         _regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
     }
 
+    this->moveToThread(this);
+
     qDebug() << "BlockAnalyzerThread initialized.";
 }
 
@@ -40,6 +42,25 @@ BlockAnalyzerThread::~BlockAnalyzerThread()
     }
 }
 
+void BlockAnalyzerThread::analyzingFinishing(void)
+{
+    if (!_dataProvider_ptr)
+        return;
+
+    while (true) {
+        _dataProvider_ptr->lock();
+        bool b = !_dataProvider_ptr->isDataEmpty();
+        _dataProvider_ptr->unlock();
+        if (b)
+            analyzeBlock();
+        else
+            break;
+        //qDebug() << "iteration";
+    }
+
+    emit analyzisFinished();
+}
+
 void BlockAnalyzerThread::analyzeBlock(void)
 {
     if (!_dataProvider_ptr) {
@@ -50,15 +71,23 @@ void BlockAnalyzerThread::analyzeBlock(void)
     QByteArrayView block;
     try
     {
+        //QThread::sleep(std::chrono::seconds(1));
         {
             _dataProvider_ptr->lock();
+            qsizetype size = _dataProvider_ptr->dataSize();
             if (_dataProvider_ptr->isDataEmpty()) {
                 _dataProvider_ptr->unlock();
                 return;
             }
 
             block = _dataProvider_ptr->getDataBlock();
+            //qDebug() << "blockQueue dequeue";
             _dataProvider_ptr->unlock();
+            if (size >= _config.max_chunks_in_mem_num
+                && _dataProvider_ptr->dataSize() < _config.max_chunks_in_mem_num) {
+                qInfo() << "threshold block freed";
+                emit thresholdBlockFreed();
+            }
         }
         // QByteArrayView view = block.right(15);
         // qDebug() << "right part of block: " << view;
@@ -97,8 +126,17 @@ void BlockAnalyzerThread::analyzeBlock(void)
 
         _processed += block.size();
     }
+    catch (const std::bad_alloc &e) {
+         qCritical() << "bad alloc exception:" << e.what();
+         emit analyzingError(QString("bad alloc exception:") + e.what());
+    }
     catch (const std::exception &e) {
         qCritical() << "Exception during block analysis:" << e.what();
+        emit analyzingError(QString("Exception during block analysis:") + e.what());
+    }
+    catch (...) {
+        qCritical() << "Unknown exception";
+        emit analyzingError("Unknown exception");
     }
 }
 
@@ -178,7 +216,6 @@ void BlockAnalyzerThread::run()
 
 void BlockAnalyzerThread::emitUpdate(void)
 {
-    //qInfo() << "Emit update";
     if (_totalSize == 0) {
         if (_processed > 0)
             emit progress(0);

@@ -10,6 +10,11 @@ bool MockDataProvider::isDataEmpty() const
     return queue.isEmpty();
 }
 
+qsizetype MockDataProvider::dataSize() const
+{
+    return 0;
+}
+
 QByteArrayView MockDataProvider::getDataBlock()
 {
     if (queue.isEmpty()) return QByteArrayView();
