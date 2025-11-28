@@ -18,15 +18,18 @@ private slots:
         QByteArray data = "hello world hello"; // Создаем данные отдельно, чтобы знать размер
         mock.addData(data);
 
-        BlockAnalyzerThread analyzer(cfg, &mock);
+        BlockAnalyzerThread* analyzer = new BlockAnalyzerThread(cfg, &mock);
 
-        analyzer.setTotalSize(data.size());
+        analyzer->setTotalSize(data.size());
 
-        QSignalSpy spy(&analyzer, &BlockAnalyzerThread::topWords);
+        QSignalSpy spy(analyzer, &BlockAnalyzerThread::topWords);
 
-        // 2. Действие
-        analyzer.startAnalyzis();
-        analyzer.analyzeBlock();
+        // 2. ЗАПУСК ПОТОКА (Теперь это обязательно)
+        analyzer->start();
+
+        QMetaObject::invokeMethod(analyzer, "startAnalyzis", Qt::QueuedConnection);
+
+        QMetaObject::invokeMethod(analyzer, "analyzeBlock", Qt::QueuedConnection);
 
         // 3. Проверка
         QVERIFY2(spy.wait(1000), "Timeout waiting for topWords signal");
@@ -52,15 +55,18 @@ private slots:
         QByteArray data = "run, run! run...";
         mock.addData(data);
 
-        BlockAnalyzerThread analyzer(cfg, &mock);
+        BlockAnalyzerThread* analyzer = new BlockAnalyzerThread(cfg, &mock);
 
-        analyzer.setTotalSize(data.size());
+        analyzer->setTotalSize(data.size());
         mock.addData(data);
 
-        QSignalSpy spy(&analyzer, &BlockAnalyzerThread::topWords);
+        QSignalSpy spy(analyzer, &BlockAnalyzerThread::topWords);
 
-        analyzer.startAnalyzis();
-        analyzer.analyzeBlock();
+        analyzer->start();
+
+        QMetaObject::invokeMethod(analyzer, "startAnalyzis", Qt::QueuedConnection);
+
+        QMetaObject::invokeMethod(analyzer, "analyzeBlock", Qt::QueuedConnection);
 
         QVERIFY2(spy.wait(1000), "Timeout waiting for topWords signal");
         QCOMPARE(spy.count(), 1);
