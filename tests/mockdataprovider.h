@@ -17,9 +17,9 @@ public:
     void lock() override { }
     void unlock() override { }
 
-    bool isDataEmpty() const override;
+    bool isDataEmpty() const noexcept override;
 
-    qsizetype dataSize() const override;
+    qsizetype dataSize() const noexcept override;
 
     QByteArrayView getDataBlock() override;
 };

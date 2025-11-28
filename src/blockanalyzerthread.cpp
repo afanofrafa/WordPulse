@@ -12,8 +12,6 @@ BlockAnalyzerThread::BlockAnalyzerThread(const Config &config, IDataProvider* da
     _update_timer = new QTimer(this);
     connect(_update_timer, &QTimer::timeout, this, &BlockAnalyzerThread::emitUpdate, Qt::QueuedConnection);
 
-    //connect(dataProvider_ptr, &FileReaderThread::chunkIsReady, this, &BlockAnalyzerThread::analyzeBlock);
-
     _regex.setPattern(config.string_pattern);
     if (!_config.case_sensitive) {
         _regex.setPatternOptions(QRegularExpression::NoPatternOption);
@@ -33,7 +31,7 @@ BlockAnalyzerThread::~BlockAnalyzerThread()
     cancelAnalyzis();
 
     if (isRunning()) {
-        requestInterruption(); // Вежливая просьба
+        requestInterruption();
         quit();
         if (!wait(3000)) {
             qCritical() << "BlockAnalyzerThread stuck, terminating.";
@@ -55,7 +53,6 @@ void BlockAnalyzerThread::analyzingFinishing(void)
             analyzeBlock();
         else
             break;
-        //qDebug() << "iteration";
     }
 
     emit analyzisFinished();
@@ -71,7 +68,6 @@ void BlockAnalyzerThread::analyzeBlock(void)
     QByteArrayView block;
     try
     {
-        //QThread::sleep(std::chrono::seconds(1));
         {
             _dataProvider_ptr->lock();
             qsizetype size = _dataProvider_ptr->dataSize();
@@ -81,7 +77,6 @@ void BlockAnalyzerThread::analyzeBlock(void)
             }
 
             block = _dataProvider_ptr->getDataBlock();
-            //qDebug() << "blockQueue dequeue";
             _dataProvider_ptr->unlock();
             if (size >= _config.max_chunks_in_mem_num
                 && _dataProvider_ptr->dataSize() < _config.max_chunks_in_mem_num) {
@@ -89,8 +84,6 @@ void BlockAnalyzerThread::analyzeBlock(void)
                 emit thresholdBlockFreed();
             }
         }
-        // QByteArrayView view = block.right(15);
-        // qDebug() << "right part of block: " << view;
         QRegularExpressionMatchIterator it = _regex.globalMatch(QString::fromUtf8(block));
 
         while (it.hasNext())

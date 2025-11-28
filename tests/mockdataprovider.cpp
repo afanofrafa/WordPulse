@@ -5,12 +5,12 @@ void MockDataProvider::addData(const QString &str)
     queue.enqueue(str.toUtf8());
 }
 
-bool MockDataProvider::isDataEmpty() const
+bool MockDataProvider::isDataEmpty() const noexcept
 {
     return queue.isEmpty();
 }
 
-qsizetype MockDataProvider::dataSize() const
+qsizetype MockDataProvider::dataSize() const noexcept
 {
     return 0;
 }

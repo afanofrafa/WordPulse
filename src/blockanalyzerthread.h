@@ -39,10 +39,8 @@ public slots:
 signals:
     void analyzingError(const QString& error);
     void analyzisFinished();
-    void error();
     void thresholdBlockFreed();
     void blockProcessed(const QMap<QByteArray, int>& wordCount, qint64 bytesProcessed);
-    void error(const QString& message);
     void progress(quint8 progress);
     void topWords(const QVector<QPair<quint64, QString>>& list);
 

@@ -21,16 +21,14 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     quint64 getMaxCount() const;
-    // Полный сброс (использовать редко: start, cancel)
     void resetTopWords(const QVector<QPair<quint64, QString>>& newTopWords);
+    void updateWord(int index, quint64 newCount, const QString& word = QString());
 
-    // Частичное обновление (основной метод)
-    void updateWord(int index, quint64 newCount, const QString& word = QString());  // word пустая = не менять
 signals:
     void maxCountChanged();
 private:
-    QVector<QPair<quint64, QString>> topWords;  // {count, word}, sorted descending
-    quint64 maxCount;  // ← Хранение максимума
+    QVector<QPair<quint64, QString>> topWords;
+    quint64 maxCount;
     quint64 calculateMax() const;
 };
 

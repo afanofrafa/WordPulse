@@ -31,13 +31,11 @@ public:
 
     void lock() override;
     void unlock() override;
-    bool isDataEmpty() const override;
-    qsizetype dataSize() const override;
+    bool isDataEmpty() const noexcept override;
+    qsizetype dataSize() const noexcept override;
     QByteArrayView getDataBlock() override;
 
-    /*tbb::detail::d2::concurrent_queue<QString>*/QQueue<QByteArrayView>& getBlockQueue(void) noexcept;
-    //std::atomic<quint64>& getBlockQueueSize(void) noexcept;
-
+    const QQueue<QByteArrayView>& getBlockQueue(void) const noexcept;
     bool getRunning() const noexcept;
     bool getPaused() const noexcept;
 
@@ -64,13 +62,9 @@ private:
     QFile file;
     QString filePath;
     std::unique_ptr<QTextStream> stream;
-    //QByteArray blockStr;
 
-    //QTimer* read_timer = nullptr;
-
-   /* tbb::detail::d2::concurrent_queue<QString>*/QQueue<QByteArrayView> blockQueue;
+    QQueue<QByteArrayView> blockQueue;
     QMutex mutex;
-    //std::atomic<quint64> blockQueueSize;
 
     const Config& config_cref;
 

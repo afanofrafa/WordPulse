@@ -9,7 +9,6 @@ WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _conf
     _topWordsModel = new TopWordsModel(this);
     _progress = 0;
      _topWordsModel->resetTopWords({});
-    _status = "";
     _isRunning = false;
     _isPaused = false;
     _fileChosen = false;
@@ -57,11 +56,6 @@ WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _conf
 WordPulseViewModel::~WordPulseViewModel()
 {
 
-}
-
-QString WordPulseViewModel::get_status() const noexcept
-{
-    return _status;
 }
 
 qint32 WordPulseViewModel::get_topWordsCount() const noexcept
@@ -186,19 +180,6 @@ void WordPulseViewModel::showWarning(const QString &msg)
 void WordPulseViewModel::showError(const QString &msg)
 {
     emit systemMessage(MsgError, msg);
-}
-
-void WordPulseViewModel::setStatus(const QString& status_str) {
-    if (_status != status_str) {
-        _status = status_str;
-        emit statusChanged();
-    }
-}
-
-void WordPulseViewModel::setError(const QString& error_str)
-{
-    if (_error != error_str)
-        _error = error_str;
 }
 
 void WordPulseViewModel::setProgress(quint8 progress)

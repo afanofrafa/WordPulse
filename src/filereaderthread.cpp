@@ -57,12 +57,12 @@ void FileReaderThread::unlock()
     mutex.unlock();
 }
 
-bool FileReaderThread::isDataEmpty() const
+bool FileReaderThread::isDataEmpty() const noexcept
 {
     return blockQueue.isEmpty();
 }
 
-qsizetype FileReaderThread::dataSize() const
+qsizetype FileReaderThread::dataSize() const noexcept
 {
     return blockQueue.size();
 }
@@ -72,7 +72,7 @@ QByteArrayView FileReaderThread::getDataBlock()
     return blockQueue.dequeue();
 }
 
-QQueue<QByteArrayView>& FileReaderThread::getBlockQueue(void) noexcept
+const QQueue<QByteArrayView>& FileReaderThread::getBlockQueue(void) const noexcept
 {
     return blockQueue;
 }
@@ -118,8 +118,6 @@ void FileReaderThread::startReading() {
         QMutexLocker locker(&mutex);
         blockQueue.clear();
     }
-
-    emit statusChanged("Чтение начато: " + QFileInfo(filePath).fileName());
 
     qInfo() << "Reading started successfully.";
 
