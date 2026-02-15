@@ -103,33 +103,30 @@ ApplicationWindow {
                 }
 
                 // ← КЛЮЧЕВОЙ ФИКС: GridLayout вместо RowLayout + Repeater
-                GridLayout {
+                RowLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    columns: vm.topWordsCount > 0 ? vm.topWordsCount : 1
-                    columnSpacing: 12
-                    rowSpacing: 20
+                    spacing: 12
 
                     Repeater {
                         model: vm.topWordsModel
 
-                        delegate: Column {
-                            Layout.alignment: Qt.AlignBottom | Qt.AlignHCenter
+                        delegate: ColumnLayout { // Используем ColumnLayout для бара
+                            Layout.alignment: Qt.AlignBottom
                             Layout.fillWidth: true
-                            Layout.preferredWidth: 1
                             spacing: 8
 
                             property real maxCount: vm.topWordsModel.maxCount
 
-                            // БАР — теперь ширина всегда одинаковая!
+                            // БАР
                             Rectangle {
-                                width: parent.width - 20  // отступы по бокам
-                                height: maxCount > 0 ? (model.count / maxCount) * 280 : 0
+                                Layout.fillWidth: true
+                                // Важно: задаем preferredHeight, чтобы бар рос снизу вверх
+                                Layout.preferredHeight: maxCount > 0 ? (model.count / maxCount) * 280 : 0
                                 color: Material.color(Material.Green)
                                 radius: 8
-                                anchors.horizontalCenter: parent.horizontalCenter
 
-                                Behavior on height {
+                                Behavior on Layout.preferredHeight {
                                     NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
                                 }
 
@@ -146,11 +143,11 @@ ApplicationWindow {
                                 }
                             }
 
-                            // Подпись слова — с переносом и обрезкой
+                            // Подпись слова
                             Text {
-                                text: word//(word.length > 10 ? word.substring(0, 0) + "..." : word)
+                                text: word
                                 font.pixelSize: 11
-                                width: parent.width - 10
+                                Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 2
@@ -158,13 +155,13 @@ ApplicationWindow {
                                 color: "#333"
                             }
 
-                            // Счётчик (опционально, красиво)
+                            // Счётчик
                             Text {
                                 text: model.count
                                 font.pixelSize: 10
                                 font.bold: true
                                 color: Material.color(Material.Green, Material.Shade700)
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                Layout.alignment: Qt.AlignHCenter
                             }
                         }
                     }

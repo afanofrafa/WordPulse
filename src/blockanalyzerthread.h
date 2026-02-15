@@ -1,66 +1,42 @@
 #ifndef BLOCKANALYZERTHREAD_H
 #define BLOCKANALYZERTHREAD_H
 
-#include <QObject>
 #include <QThread>
-#include <QQueue>
-#include <QMutex>
-#include <QTimer>
-#include <QRegularExpression>
 #include <QMap>
+#include <QByteArrayView>
+#include <QString>
+#include <QMutex>
+#include <QWaitCondition>
 #include "config.h"
-#include "filereaderthread.h"
-/*#pragma push_macro("emit")
-#undef emit
-#include <oneapi/tbb/concurrent_queue.h>
-#include <oneapi/tbb/concurrent_map.h>
-#pragma pop_macro("emit")*/
 
 class BlockAnalyzerThread : public QThread {
     Q_OBJECT
 
 public:
     explicit BlockAnalyzerThread(const Config& config,
-                                 IDataProvider* dataProvider_ptr = nullptr,
+                                 QByteArrayView chunk,
+                                 int threadId,
                                  QObject* parent = nullptr);
     ~BlockAnalyzerThread() override;
 
-public slots:
-    void analyzingFinishing(void);
-    void analyzeBlock(void);
-    void setTotalSize(quint64 totalSize);
-    void setProcessed(quint64 processed);
-    void clearTops();
-    void cancelAnalyzis(void);
-    void startAnalyzis(void);
-    void resumeAnalyzis(void);
-    void pauseAnalyzis(void);
+    void setPaused(bool paused);
 
 signals:
+    void intermediateData(const QMap<QString, quint64>& chunkMap);
+    void analysisFinished(/*const QMap<QString, quint64>& localWordMap*/);
+    void progressUpdated(int threadId, quint8 progress);
     void analyzingError(const QString& error);
-    void analyzisFinished();
-    void thresholdBlockFreed();
-    void blockProcessed(const QMap<QByteArray, int>& wordCount, qint64 bytesProcessed);
-    void progress(quint8 progress);
-    void topWords(const QVector<QPair<quint64, QString>>& list);
 
 protected:
     void run() override;
+
 private:
-    void emitUpdate(void);
-    QVector<QPair<quint64, QString>> getTopWordsWithCount(void) const;
-
-    QByteArrayView _block;
-    QString _word;
-
     const Config& _config;
-    QRegularExpression _regex;
-    QMap<QString, quint64> _totalWordsMap;
-    std::set<QPair<quint64, QString>, std::less<QPair<quint64, QString>>> _topWordsSet;
-    IDataProvider* _dataProvider_ptr;
-    quint64 _totalSize;
-    quint64 _processed;
-    QTimer* _update_timer;
+    QByteArrayView _chunk;
+    int _threadId;
+    std::atomic<bool> _isPaused{false};
+    QMutex _pauseMutex;
+    QWaitCondition _pauseCondition;
 };
 
 #endif // BLOCKANALYZERTHREAD_H

@@ -3,248 +3,150 @@
 #include <QFileInfo>
 #include <QDir>
 #include "topwordsmodel.h"
+#include "analyzerorchestrator.h"
 
-WordPulseViewModel::WordPulseViewModel(QObject *parent) : QObject{parent}, _configPath("config.json"), _config(Config::fromJson(_configPath))
+WordPulseViewModel::WordPulseViewModel(QObject *parent)
+    : QObject(parent), _configPath("config.json"), _config(Config::fromJson(_configPath))
 {
     _topWordsModel = new TopWordsModel(this);
     _progress = 0;
-     _topWordsModel->resetTopWords({});
     _isRunning = false;
     _isPaused = false;
     _fileChosen = false;
-
-    reader = std::make_unique<FileReaderThread>("", _config);
-    analyzer = std::make_unique<BlockAnalyzerThread>(_config, reader.get());
-
-    connect(reader.get(), &FileReaderThread::chunkIsReady,
-            analyzer.get(), &BlockAnalyzerThread::analyzeBlock, Qt::QueuedConnection);
-
-    connect(reader.get(), &FileReaderThread::readingFinished,
-            analyzer.get(), &BlockAnalyzerThread::analyzingFinishing, Qt::QueuedConnection);
-
-    connect(analyzer.get(), &BlockAnalyzerThread::analyzisFinished,
-            this, &WordPulseViewModel::finishProcess, Qt::QueuedConnection);
-
-    connect(analyzer.get(), &BlockAnalyzerThread::analyzingError,
-            this, &WordPulseViewModel::showError, Qt::QueuedConnection);
-
-    connect(reader.get(), &FileReaderThread::readingError,
-            this, &WordPulseViewModel::showError, Qt::QueuedConnection);
-
-    connect(analyzer.get(), &BlockAnalyzerThread::thresholdBlockFreed,
-            reader.get(), &FileReaderThread::readChunk, Qt::QueuedConnection);
-
-    connect(this, &WordPulseViewModel::readingStarted, reader.get(), &FileReaderThread::startReading, Qt::QueuedConnection);
-    connect(this, &WordPulseViewModel::readingStarted, analyzer.get(), &BlockAnalyzerThread::startAnalyzis, Qt::QueuedConnection);
-
-    connect(this, &WordPulseViewModel::readingPaused, reader.get(), &FileReaderThread::pauseReading, Qt::QueuedConnection);
-    connect(this, &WordPulseViewModel::readingPaused, analyzer.get(), &BlockAnalyzerThread::pauseAnalyzis, Qt::QueuedConnection);
-
-    connect(this, &WordPulseViewModel::readingResumed, reader.get(), &FileReaderThread::resumeReading, Qt::QueuedConnection);
-    connect(this, &WordPulseViewModel::readingResumed, analyzer.get(), &BlockAnalyzerThread::resumeAnalyzis, Qt::QueuedConnection);
-
-    connect(this, &WordPulseViewModel::readingCancel, reader.get(), &FileReaderThread::cancelReading, Qt::QueuedConnection);
-    connect(this, &WordPulseViewModel::readingCancel, analyzer.get(), &BlockAnalyzerThread::cancelAnalyzis, Qt::QueuedConnection);
-
-    connect(reader.get(), &FileReaderThread::isPausedChanged, this, &WordPulseViewModel::setIsPaused, Qt::QueuedConnection);
-    connect(reader.get(), &FileReaderThread::isRunningChanged, this, &WordPulseViewModel::setIsRunning, Qt::QueuedConnection);
-
-    connect(analyzer.get(), &BlockAnalyzerThread::progress, this, &WordPulseViewModel::updateProgress, Qt::QueuedConnection);
-    connect(analyzer.get(), &BlockAnalyzerThread::topWords, this, &WordPulseViewModel::updateTopWords,  Qt::QueuedConnection);
 }
 
-WordPulseViewModel::~WordPulseViewModel()
-{
-
-}
-
-qint32 WordPulseViewModel::get_topWordsCount() const noexcept
-{
-    return _config.top_n;
-}
-
-bool WordPulseViewModel::get_isRunning() const noexcept
-{
-    return _isRunning;
-}
-
-bool WordPulseViewModel::get_isPaused() const noexcept
-{
-    return _isPaused;
-}
-
-quint8 WordPulseViewModel::get_progress() const noexcept
-{
-    return _progress;
+WordPulseViewModel::~WordPulseViewModel() {
+    cleanupOrchestrator();
 }
 
 void WordPulseViewModel::openFile() {
     QString fileName = QFileDialog::getOpenFileName(
-        nullptr,                                   // родитель (nullptr = модальный)
-        tr("Открыть файл"),              // заголовок
-        QDir::homePath(),                          // начальная папка
-        tr("Текстовые файлы (*.txt *.log);;Все файлы (*)")  // фильтры
-    );
+        nullptr, tr("Открыть файл"), QDir::homePath(), tr("Текстовые файлы (*.txt *.log);;Все файлы (*)")
+        );
 
     if (fileName.isEmpty()) {
-        emit showWarning("Выбор файла отменён");
+        showWarning("Выбор файла отменён");
         return;
     }
 
-    reader->setFilePath(fileName);
-
+    _currentFilePath = fileName;
     QFileInfo fileInfo(fileName);
-    if (analyzer) {
-         analyzer->setProcessed(0);
-         analyzer->clearTops();
-         analyzer->setTotalSize(fileInfo.size());
-    }
 
     _topWordsModel->resetTopWords({});
-    _progress = 0;
+    setProgress(0);
     _fileChosen = true;
-    emit progressChanged();
 
-    emit showInfo(QString("Выбран файл: %1 (%2 КБ)")
-                  .arg(fileInfo.fileName())
-                  .arg(fileInfo.size() / 1024));
+    showInfo(QString("Выбран файл: %1 (%2 КБ)").arg(fileInfo.fileName()).arg(fileInfo.size() / 1024));
 }
 
-void WordPulseViewModel::start()
-{
-    if (!_fileChosen) {
-        emit showWarning("Файл не выбран!");
-        return;
-    }
+void WordPulseViewModel::start() {
+    if (!_fileChosen) { showWarning("Файл не выбран!"); return; }
 
-    qDebug() << "started";
+    cleanupOrchestrator(); // Полностью чистим всё старое
+
     _topWordsModel->resetTopWords({});
-    _progress = 0;
-    emit progressChanged();
+    setProgress(0);
 
-    if (reader)
-        reader->start();
-    if (analyzer)
-        analyzer->start();
+    // Создаем голый поток и объект Оркестратора
+    _orchestratorThread = new QThread(this);
+    _orchestrator = new AnalyzerOrchestrator(_config, _currentFilePath);
 
-    _isPaused = false;
+    // Переносим объект в фоновый поток. Теперь все его слоты и таймеры будут жить там!
+    _orchestrator->moveToThread(_orchestratorThread);
+
+    // При старте потока - запускаем анализ
+    connect(_orchestratorThread, &QThread::started, _orchestrator, &AnalyzerOrchestrator::startProcessing);
+
+    // Привязки UI
+    connect(_orchestrator, &AnalyzerOrchestrator::sigTopWordsReady, this, &WordPulseViewModel::onTopWordsReady);
+    connect(_orchestrator, &AnalyzerOrchestrator::sigProgressUpdated, this, &WordPulseViewModel::onProgressUpdated);
+    connect(_orchestrator, &AnalyzerOrchestrator::sigFinished, this, &WordPulseViewModel::onAnalysisFinished);
+    connect(_orchestrator, &AnalyzerOrchestrator::sigError, this, &WordPulseViewModel::onAnalysisError);
+    connect(_orchestrator, &AnalyzerOrchestrator::sigCanceled, this, &WordPulseViewModel::onAnalysisCanceled);
+
+    // Запускаем!
+    _orchestratorThread->start();
+
     _isRunning = true;
-    emit readingStarted();
-
-    emit pausedChanged();
+    _isPaused = false;
     emit runningChanged();
+    emit pausedChanged();
 }
 
-void WordPulseViewModel::pause()
-{
-    qDebug() << "paused";
+void WordPulseViewModel::pause() {
     _isPaused = true;
-    emit readingPaused();
-
+    if (_orchestrator) _orchestrator->pause();
     emit pausedChanged();
 }
 
-void WordPulseViewModel::resume()
-{
-    qDebug() << "resumed";
+void WordPulseViewModel::resume() {
     _isPaused = false;
-    emit readingResumed();
-
+    if (_orchestrator) _orchestrator->resume();
     emit pausedChanged();
 }
 
-void WordPulseViewModel::cancel()
-{
-    qDebug() << "cancel";
-    _topWordsModel->resetTopWords({});
-    _progress = 0;
-    _isPaused = false;
-    _isRunning = false;
-    emit progressChanged();
-    emit readingCancel();
+void WordPulseViewModel::cancel() {
+    showInfo("Отмена операции...");
 
-    emit pausedChanged();
-    emit runningChanged();
-}
-
-void WordPulseViewModel::showInfo(const QString &msg)
-{
-    emit systemMessage(MsgInfo, msg);
-}
-
-void WordPulseViewModel::showWarning(const QString &msg)
-{
-    emit systemMessage(MsgWarning, msg);
-}
-
-void WordPulseViewModel::showError(const QString &msg)
-{
-    emit systemMessage(MsgError, msg);
-}
-
-void WordPulseViewModel::setProgress(quint8 progress)
-{
-    if (this->_progress != progress) {
-        this->_progress = progress;
+    if (_orchestrator) {
+        QMetaObject::invokeMethod(_orchestrator, "cancelProcessing", Qt::QueuedConnection);
     }
 }
 
-void WordPulseViewModel::setIsRunning(bool isRunning)
-{
-    this->_isRunning = isRunning;
-    qDebug() << "setIsRunning: " << isRunning;
-    emit runningChanged();
+// ЭТО САМЫЙ БЕЗОПАСНЫЙ СПОСОБ ЗАКРЫТЬ ПОТОК В C++
+void WordPulseViewModel::cleanupOrchestrator() {
+    if (_orchestrator && _orchestratorThread) {
+        _orchestrator->requestCancel();
+
+        QMetaObject::invokeMethod(_orchestrator, "performCleanup", Qt::BlockingQueuedConnection);
+
+        _orchestratorThread->quit();
+        _orchestratorThread->wait();
+
+        delete _orchestrator;
+        delete _orchestratorThread;
+
+        _orchestrator = nullptr;
+        _orchestratorThread = nullptr;
+    }
 }
 
-void WordPulseViewModel::setIsPaused(bool isPaused)
-{
-    this->_isPaused = isPaused;
-    qDebug() << "setIsPaused: " << isPaused;
+void WordPulseViewModel::onTopWordsReady(const QVector<QPair<quint64, QString>>& topWords) {
+    _topWordsModel->resetTopWords(topWords);
+}
+
+void WordPulseViewModel::onProgressUpdated(quint8 progress) {
+    setProgress(progress);
+}
+
+void WordPulseViewModel::onAnalysisFinished() {
+    cleanupOrchestrator();
+    _isRunning = false;
+    emit runningChanged();
+    setProgress(100);
+    showInfo("Анализ успешно завершён!");
+}
+
+void WordPulseViewModel::onAnalysisError(const QString& error) {
+    showError(error);
+    cancel();
+}
+
+void WordPulseViewModel::onAnalysisCanceled() {
+    cleanupOrchestrator();
+
+    _topWordsModel->resetTopWords({});
+    setProgress(0);
+
+    _isRunning = false;
+    _isPaused = false;
+    emit runningChanged();
     emit pausedChanged();
 }
 
-void WordPulseViewModel::updateProgress(quint8 progress) {
-    if (_isPaused)
-        return;
-
-    if (this->_progress != progress) {
-        this->_progress = progress;
-        qDebug() << "progressChanged";
+void WordPulseViewModel::setProgress(quint8 progress) {
+    if (_progress != progress) {
+        _progress = progress;
         emit progressChanged();
     }
-}
-
-void WordPulseViewModel::updateTopWords(const QVector<QPair<quint64, QString>>& newTopWords) {
-    if (_isPaused)
-        return;
-
-    const int currentSize = _topWordsModel->rowCount();
-    const int newSize = newTopWords.size();
-    const int minSize = qMin(currentSize, newSize);
-
-    bool needsReset = (currentSize != newSize);
-    if (!needsReset) {
-        for (int i = 0; i < minSize; ++i) {
-            const auto& newPair = newTopWords.at(i);
-            const QModelIndex idx = _topWordsModel->index(i);
-            quint64 currentCount = _topWordsModel->data(idx, TopWordsModel::CountRole).value<quint64>();
-            QString currentWord = _topWordsModel->data(idx, TopWordsModel::WordRole).toString();
-            if (newPair.first != currentCount || newPair.second != currentWord) {
-                _topWordsModel->updateWord(i, newPair.first, newPair.second);
-            }
-        }
-    } else {
-        _topWordsModel->resetTopWords(newTopWords);
-    }
-}
-
-void WordPulseViewModel::finishProcess()
-{
-    _isRunning = false;
-    emit runningChanged();
-    emit showInfo("Анализ завершён!");
-}
-
-TopWordsModel* WordPulseViewModel::getTopWordsModel() const noexcept {
-    return _topWordsModel;
 }

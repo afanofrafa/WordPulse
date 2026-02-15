@@ -18,7 +18,12 @@ QVariant TopWordsModel::data(const QModelIndex& index, int role) const {
 
     switch (role) {
         case CountRole: return QVariant::fromValue(pair.first);
-        case WordRole: return pair.second;
+        case WordRole: {
+            if (pair.second.length() > 50) {
+                return pair.second.left(15) + "..." + pair.second.right(15);
+            }
+            return pair.second;
+        }
         default: return QVariant();
     }
 }
